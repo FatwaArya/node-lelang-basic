@@ -44,46 +44,48 @@ const user = {
     //bid on barang
     bid: (req, res) => {
         //check if user id and id barang is valid
-        db.query('SELECT * FROM user WHERE id = ?', [req.params.id_user], (err, result) => {
+        db.query('SELECT * FROM user WHERE id = ?; SELECT * FROM barang WHERE id = ?', [req.params.id_user, req.params.id_barang], (err, result) => {
             if (err) throw err;
-            if (result.length === 0) {
+
+            if (result[0].length === 0 && result[1].length === 0) {
+                return res.send({
+                    message: 'User and Item not found'
+                })
+            };
+            if (result[0].length === 0) {
                 return res.send({
                     message: 'User not found'
                 })
             };
-            db.query('SELECT * FROM barang WHERE id = ?', [req.params.id_barang], (err, result) => {
-                if (err) throw err;
-                if (result.length === 0) {
-                    return res.send({
-                        message: 'barang not found'
-                    })
-                };
-            });
-            db.query('SELECT * FROM barang WHERE id = ?', [req.params.id_barang], (err, result) => {
-                if (err) throw err;
+            if (result[1].length === 0) {
+                return res.send({
+                    message: 'Item not found'
+                })
+            };
 
-                if (result[0].harga > req.body.harga) {
-                    return res.send({
-                        message: 'User does not have enough money'
-                    })
-                } else {
-                    db.query('UPDATE barang set harga = ? , id_user = ? where id = ?', [req.body.harga, req.params.id_user, req.params.id_barang], (err, result) => {
-                        if (err) throw err;
-                        res.send(
-                            {
-                                message: 'Bid Success with the highest holder is ' + req.params.id_user + ' and the price is ' + req.body.harga,
-                            }
-                        );
-                    });
-                }
-
-
-
-            });
         });
 
-        //check if user has enough harga to bid
+        db.query('SELECT * FROM barang WHERE id = ?', [req.params.id_barang], (err, result) => {
+            if (err) throw err;
 
+            if (result[0].harga >= req.body.harga) {
+                return res.send({
+                    message: 'User does not have enough money'
+                })
+            } else {
+                db.query('UPDATE barang set harga = ? , id_user = ? where id = ?', [req.body.harga, req.params.id_user, req.params.id_barang], (err, result) => {
+                    if (err) throw err;
+                    res.send(
+                        {
+                            message: 'Bid Success with the highest holder is ' + req.params.id_user + ' and the price is ' + req.body.harga,
+                        }
+                    );
+                });
+            }
+
+
+
+        });
     }
 }
 

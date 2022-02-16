@@ -4,7 +4,9 @@ const db = mysql.createConnection({
     host: 'localhost',
     user: 'root',
     password: '',
-    database: 'node-lelang'
+    database: 'node-lelang',
+    multipleStatements: true
+
 });
 
 //export connection
