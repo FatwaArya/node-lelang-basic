@@ -1,9 +1,9 @@
 const express = require('express');
 const db = require('./db/lelang');
+require('dotenv').config()
 const app = express();
 const port = 3000;
 app.use(express.json());
-
 //connect to db
 db.connect((err) => {
     if (err) {

@@ -1,4 +1,7 @@
 const db = require('./../db/lelang');
+const { generateToken, hashPassword } = require('./../auth/auth');
+const bcrypt = require('bcryptjs');
+
 
 //make controller for user 
 const user = {
@@ -18,14 +21,13 @@ const user = {
     },
     //insert user with
     insert: (req, res) => {
-        db.query('INSERT INTO user SET ?', req.body, (err, result) => {
+        const { nama, password, email } = req.body;
+        const passwordHash = hashPassword(password);
+        db.query('INSERT INTO user SET ?', { nama, password: passwordHash, email }, (err, result) => {
             if (err) throw err;
-            res.send(
-                {
-                    message: 'User has been created with id of ' + result.insertId + '!',
-                }
-            );
+            res.send(result);
         });
+
     },
     //update user
     update: (req, res) => {
@@ -85,6 +87,30 @@ const user = {
 
 
 
+        });
+
+        //login
+
+    },
+    login: (req, res) => {
+        db.query('SELECT * FROM user WHERE email = ?', [req.body.email], (err, result) => {
+            if (err) throw err;
+            if (result.length === 0) {
+                return res.send({
+                    message: 'User not found'
+                })
+            }
+            if (bcrypt.compareSync(req.body.password, result[0].password)) {
+                return res.send({
+                    message: 'Login Success',
+                    token: generateToken(result[0]),
+                    user: result[0]
+                })
+            } else {
+                return res.send({
+                    message: 'Wrong Password'
+                })
+            }
         });
     }
 }
