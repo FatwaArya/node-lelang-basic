@@ -2,123 +2,161 @@ const db = require('./../db/lelang');
 const { generateToken, hashPassword } = require('./../auth/auth');
 const bcrypt = require('bcryptjs');
 
-
-//make controller for user 
+// const models = require('./../models/index');//important!!
+const models = require('./../models');
+//make controller for user using sequelize
 const user = {
-    //get all user
-    getAll: (req, res) => {
-        db.query('SELECT * FROM user', (err, result) => {
-            if (err) throw err;
-            res.send(result);
-        });
+    getAll: async (req, res) => {
+        try {
+            const users = await models.User.findAll();
+            res.send(users);
+        } catch (err) {
+            res.status(500).send(err);
+        }
     },
-    //get user by id
-    getById: (req, res) => {
-        db.query('SELECT * FROM user WHERE id = ?', [req.params.id], (err, result) => {
-            if (err) throw new Error("User not found");
-            res.send(result);
-        });
+    getById: async (req, res) => {
+        try {
+            const user = await models.User.findOne({
+                where: {
+                    id: req.params.id
+                }
+            });
+            res.send(user);
+        } catch (err) {
+            res.status(500).send(err);
+        }
     },
-    //insert user with
-    insert: (req, res) => {
-        const { nama, password, email } = req.body;
-        const passwordHash = hashPassword(password);
-        db.query('INSERT INTO user SET ?', { nama, password: passwordHash, email }, (err, result) => {
-            if (err) throw err;
-            res.send(result);
-        });
+    insert: async (req, res) => {
+        try {
+            const { name, email, username, password } = req.body;
+            const hashedPassword = hashPassword(password);
+            const user = await models.User.create({
+                name,
+                email,
+                username,
+                password: hashedPassword
+            });
+            res.send(user);
+        } catch (err) {
+            res.status(500).send(err.errors[0].message);
 
+        }
     },
-    //update user
-    update: (req, res) => {
-        db.query('UPDATE user SET ? WHERE id = ?', [req.body, req.params.id], (err, result) => {
-            if (err) throw err;
-            res.send(result);
-        });
+    login: async (req, res) => {
+        try {
+            const { username, password } = req.body;
+            const user = await models.User.findOne({
+                where: {
+                    username
+                }
+            });
+            if (!user) {
+                return res.status(404).send('User not found');
+            }
+            const isMatch = await bcrypt.compare(password, user.password);
+            if (!isMatch) {
+                return res.status(401).send('Wrong password');
+            }
+            const token = generateToken(user);
+            res.send({ user, token });
+        } catch (err) {
+            res.status(500).send(err.message);
+        }
     },
-    //delete user
-    delete: (req, res) => {
-        db.query('DELETE FROM user WHERE id = ?', [req.params.id], (err, result) => {
-            if (err) throw err;
-            res.send(result);
-        });
+    logout: async (req, res) => {
+        try {
+
+            res.send('logged out');
+        } catch (err) {
+            res.status(500).send(err.message);
+        }
     },
-    //bid on barang
-    bid: (req, res) => {
-        //check if user id and id barang is valid
-        db.query('SELECT * FROM user WHERE id = ?; SELECT * FROM barang WHERE id = ?', [req.params.id_user, req.params.id_barang], (err, result) => {
-            if (err) throw err;
+    update: async (req, res) => {
+        try {
+            const { name, email, username, password } = req.body;
+            const user = await models.User.update({
+                name,
+                email,
+                username,
+                password: hashPassword(password)
+            }, {
+                where: {
+                    id: req.params.id
+                }
+            });
+            res.send(user);
+        } catch (err) {
+            res.status(500).send(err);
+        }
+    },
+    delete: async (req, res) => {
+        try {
+            const user = await models.User.destroy({
+                where: {
+                    id: req.params.id
+                }
+            });
+            res.send(user);
+        } catch (err) {
+            res.status(500).send(err);
+        }
+    },
+    bid: async (req, res) => {
+        try {
 
-            if (result[0].length === 0 && result[1].length === 0) {
-                return res.send({
-                    message: 'User and Item not found'
-                })
-            };
-            if (result[0].length === 0) {
-                return res.send({
-                    message: 'User not found'
-                })
-            };
-            if (result[1].length === 0) {
-                return res.send({
-                    message: 'Item not found'
-                })
-            };
+            const barang = await models.Item.findOne({
+                where: {
+                    id: req.params.id_barang
+                }
+            });
+            if (!barang) {
+                return res.status(404).send('Barang not found');
+            }
+            //check if user had enough money
 
-        });
-
-        db.query('SELECT * FROM barang WHERE id = ?', [req.params.id_barang], (err, result) => {
-            if (err) throw err;
-
-            if (result[0].harga >= req.body.harga) {
-                return res.send({
-                    message: 'User does not have enough money'
-                })
-            } else {
-                db.query('UPDATE barang set harga = ? , id_user = ? where id = ?', [req.body.harga, req.params.id_user, req.params.id_barang], (err, result) => {
-                    if (err) throw err;
-                    res.send(
-                        {
-                            message: 'Bid Success with the highest holder is ' + req.params.id_user + ' and the price is ' + req.body.harga,
-                        }
-                    );
-                });
+            if (req.body.harga <= barang.harga) {
+                return res.status(200).send('Not enough money');
             }
 
 
+            //bidding item
+            const item = await models.Item.update({
+                harga: req.body.harga,
+                id_user: req.user.user.id
+            }, {
+                where: {
+                    id: req.params.id_barang
+                },
+                returning: true,
+                plain: true
 
-        });
+            })
+            //findone item
+            const item_new = await models.Item.findOne({
+                where: {
+                    id: req.params.id_barang
+                }
+            });
+            //find user
+            const user = await models.User.findOne({
+                where: {
+                    id: item_new.id_user
+                }
+            });
+            let harga = item_new.dataValues.harga
 
-        //login
+            res.send("Bid Success, Highest Bidder is " + user.username + " with $" + harga + "!");
 
-    },
-    login: (req, res) => {
-        db.query('SELECT * FROM user WHERE email = ?', [req.body.email], (err, result) => {
-            if (err) throw err;
-            if (result.length === 0) {
-                return res.send({
-                    message: 'User not found'
-                })
-            }
-            if (bcrypt.compareSync(req.body.password, result[0].password)) {
-                return res.send({
-                    message: 'Login Success',
-                    token: generateToken(result[0]),
-                    user: result[0]
-                })
-            } else {
-                return res.send({
-                    message: 'Wrong Password'
-                })
-            }
-        });
+
+
+        } catch (err) {
+            res.status(500).send(err.message)
+        }
+
     }
+
 }
-
-
-
-//export controller
 module.exports = user;
 
 
-        //validation and sanitazion
+

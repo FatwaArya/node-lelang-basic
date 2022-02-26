@@ -9,26 +9,16 @@ const hashPassword = function (password) {
 
 //generate token
 const generateToken = function (user) {
+
     return jwt.sign({ user }, process.env.SECRET_KEY);
 }
 
 //checkToken
-const checkToken = function (req, res, next) {
-    let token = req.get('Authorization');
-    if (token) {
-        token = token.slice(7)
-
-        jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
-            if (err) {
-                return res.status(401).send(err)
-            } else {
-                let user = decoded.result
-                next();
-            }
-        })
-    } else {
-        return res.status(401).send()
-    }
+const checkToken = async (req, res, next) => {
+    let token = req.get('Authorization').replace('Bearer ', '');
+    let user = jwt.verify(token, process.env.SECRET_KEY);
+    req.user = user;
+    next();
 }
 
 module.exports = { generateToken, checkToken, hashPassword }
