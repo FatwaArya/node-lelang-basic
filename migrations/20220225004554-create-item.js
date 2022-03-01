@@ -23,7 +23,13 @@ module.exports = {
         allowNull: false,
       },
       id_user: {
-        type: Sequelize.INTEGER
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'Users',
+          key: 'id'
+
+        }
       },
       createdAt: {
         allowNull: false,
